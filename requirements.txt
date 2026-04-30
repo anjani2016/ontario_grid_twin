@@ -1,14 +1,8 @@
-
-
 duckdb
 lonboard
 
 scipy
 requests
-
-
-
-
 
 # Web Framework
 streamlit>=1.30.0
@@ -25,3 +19,8 @@ shapely>=2.0.0
 
 # Mathematical Simulations
 numpy>=1.24.0
+
+
+pyogrio
+pydeck
+plotly
