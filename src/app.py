@@ -2,77 +2,59 @@ import streamlit as st
 import geopandas as gpd
 import pydeck as pdk
 import pandas as pd
-import numpy as np
+import os
 
-# Page Configuration
-st.set_page_config(page_title="Ontario Grid Digital Twin", layout="wide")
-
-st.title("⚡ Ontario Data Centre & Grid Capacity Digital Twin")
-st.markdown("Evaluating 2026 IESO Forecasts for York Region Infrastructure.")
-
-# 1. Load Data
+# 1. Data Loading Function
 @st.cache_data
-def load_data():
-    subs = gpd.read_parquet('data/processed/analyzed_substations.parquet')
-    lines = gpd.read_parquet('data/raw/ontario_lines.parquet')
-    # Ensure coordinates are in lat/lon for the map
-    subs = subs.to_crs(epsg=4326)
-    lines = lines.to_crs(epsg=4326)
+def load_all_layers():
+    # Define paths
+    subs_path = 'data/processed/analyzed_substations.parquet'
+    gen_path = 'data/raw/generation_sources.parquet'
+    dc_path = 'data/raw/existing_dc.parquet'
     
-    # Extract lat/lon for pydeck
-    subs['lon'] = subs.geometry.x
-    subs['lat'] = subs.geometry.y
-    return subs, lines
+    # Verify files exist to avoid silent failures
+    if not all(os.path.exists(p) for p in [subs_path, gen_path, dc_path]):
+        st.error("Missing data files. Please run the Harvester and Analyzer scripts first.")
+        return None, None, None, None
 
-subs, lines = load_data()
-
-# 2. Sidebar Controls
-st.sidebar.header("Simulation Parameters")
-target_sub = st.sidebar.selectbox("Select Target Substation", subs['name'].unique())
-dc_load = st.sidebar.slider("Data Centre Load (MW)", 10, 500, 100)
-
-# 3. Real-time Analysis Logic
-sub_info = subs[subs['name'] == target_sub].iloc[0]
-remaining_headroom = sub_info['headroom_mw'] - dc_load
-reliability = "HIGH" if remaining_headroom > 0 else "CRITICAL"
-
-# 4. Map Visualization Logic
-# Define color based on headroom (Green to Red)
-subs['color'] = subs.apply(lambda x: [0, 255, 0, 150] if x['headroom_mw'] > dc_load else [255, 0, 0, 150], axis=1)
-
-# Pydeck Layers
-substation_layer = pdk.Layer(
-    "ScatterplotLayer",
-    subs,
-    get_position="[lon, lat]",
-    get_color="color",
-    get_radius=300,
-    pickable=True,
-)
-
-# 5. Layout: Metrics and Map
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.metric("Substation", target_sub)
-    st.metric("Net Headroom (MW)", f"{remaining_headroom:.2f}", delta=remaining_headroom)
-    st.write(f"**Status:** {reliability}")
+    # Load and Project to Lat/Lon
+    subs_df = gpd.read_parquet(subs_path).to_crs(epsg=4326)
+    gen_df = gpd.read_parquet(gen_path).to_crs(epsg=4326)
+    dc_df = gpd.read_parquet(dc_path).to_crs(epsg=4326)
     
-    if reliability == "CRITICAL":
-        st.error("Transformer Upgrade Required for 2026 Capacity.")
-    else:
-        st.success("Grid Node appears viable.")
+    # Prepare coordinates for Pydeck
+    for df in [subs_df, gen_df, dc_df]:
+        df['lon'] = df.geometry.x
+        df['lat'] = df.geometry.y
+        
+    return subs_df, gen_df, dc_df
 
-with col2:
+# 2. Execute Loading (This MUST happen before the UI logic)
+subs, gen, dc = load_all_layers()
+
+# 3. UI Logic - Only proceed if data loaded successfully
+if subs is not None:
+    st.sidebar.header("Map Layers")
+    show_subs = st.sidebar.toggle("Substations", value=True)
+    
+    map_layers = []
+
+    if show_subs:
+        sub_layer = pdk.Layer(
+            "ScatterplotLayer", 
+            subs,  # Now 'subs' is defined globally in this script
+            id="substations",
+            get_position="[lon, lat]",
+            get_color="[0, 200, 255, 160]", 
+            get_radius=500, 
+            pickable=True
+        )
+        map_layers.append(sub_layer)
+        
+    # ... (Rest of your toggle logic for gen and dc)
+
+    # Render Map
     st.pydeck_chart(pdk.Deck(
-        map_style='mapbox://styles/mapbox/light-v9',
-        initial_view_state=pdk.ViewState(
-            latitude=subs['lat'].mean(),
-            longitude=subs['lon'].mean(),
-            zoom=10,
-            pitch=45,
-        ),
-        layers=[substation_layer]
+        layers=map_layers,
+        initial_view_state=pdk.ViewState(latitude=43.9, longitude=-79.4, zoom=8, pitch=45)
     ))
-
-st.info("Technical Note: Calculations incorporate a 1.15 Safety Factor and I2R loss estimates.")
