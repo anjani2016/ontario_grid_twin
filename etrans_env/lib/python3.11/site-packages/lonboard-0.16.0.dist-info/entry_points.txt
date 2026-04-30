@@ -1,0 +1,2 @@
+[console_scripts]
+lonboard = lonboard._cli:main

@@ -1,0 +1,13 @@
+pandas
+geopandas
+shapely
+duckdb
+streamlit
+lonboard
+pyarrow
+scipy
+requests
+
+
+streamlit
+pydeck
