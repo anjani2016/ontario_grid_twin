@@ -2,18 +2,46 @@ import streamlit as st
 import geopandas as gpd
 import pydeck as pdk
 import pandas as pd
+import numpy as np
 import os
 import plotly.express as px
-import numpy as np
+from engine.grid_model import GridNode
+
+# Page Configuration
+st.set_page_config(page_title="Ontario Grid Digital Twin", layout="wide")
 
 # --- 1. Shared Data Loading ---
 @st.cache_data
 def load_data():
-    # Load substation data
-    # Note: Ensure data/processed/analyzed_substations.parquet exists in your repo
-    subs = gpd.read_parquet('data/processed/analyzed_substations.parquet').to_crs(epsg=4326)
+    subs_path = 'data/processed/analyzed_substations.parquet'
+    lines_path = 'data/raw/ontario_lines.parquet'
+    gen_path = 'data/raw/generation_sources.parquet'
+    dc_path = 'data/raw/existing_dc.parquet'
+    
+    # Substations (Always required)
+    subs = gpd.read_parquet(subs_path).to_crs(epsg=4326)
     subs['lon'] = subs.geometry.x
     subs['lat'] = subs.geometry.y
+    
+    # Optional files but critical for full functionality
+    if os.path.exists(lines_path):
+        lines = gpd.read_parquet(lines_path).to_crs(epsg=4326)
+    else:
+        lines = None
+        
+    if os.path.exists(gen_path):
+        gen = gpd.read_parquet(gen_path).to_crs(epsg=4326)
+        gen['lon'] = gen.geometry.x
+        gen['lat'] = gen.geometry.y
+    else:
+        gen = None
+        
+    if os.path.exists(dc_path):
+        dc = gpd.read_parquet(dc_path).to_crs(epsg=4326)
+        dc['lon'] = dc.geometry.x
+        dc['lat'] = dc.geometry.y
+    else:
+        dc = None
     
     # Create "Proposed Projects" (Commencement Data)
     projects = pd.DataFrame([
@@ -22,80 +50,227 @@ def load_data():
         for i in range(15)
     ])
 
-    # Logic to categorize by Type (Matches Screenshot 2026-04-30 at 3.10.36 PM.png)
     def categorize_type(mw):
         if mw <= 10: return 'Legacy (1-10MW)'
         if mw <= 50: return 'Mid-Tier'
         return 'Hyperscale (50-300MW)'
 
     projects['Type'] = projects['capacity_mw'].apply(categorize_type)
-    
-    # Clean column names to prevent KeyErrors
     projects.columns = projects.columns.str.strip()
     
-    return subs, projects
+    return subs, lines, gen, dc, projects
 
 # Single execution of data loading
-subs, projects = load_data()
+subs, lines, gen, dc, projects = load_data()
+
+# ---------------------------------------------------------
+# Dynamic GridNode Instantiation (Scaling)
+# ---------------------------------------------------------
+grid_nodes = {}
+for idx, row in subs.iterrows():
+    v_val = 230
+    if 'voltage' in row and pd.notnull(row['voltage']):
+        try:
+            v_val = int(str(row['voltage']).replace('kV', '').strip())
+        except ValueError:
+            pass
+    
+    cap = float(row.get('capacity_mw', 1000))
+    b_load = cap - row['headroom_mw'] if 'headroom_mw' in row else float(row.get('current_load_mw', 800))
+    
+    grid_nodes[row['name']] = GridNode(
+        name=row['name'],
+        capacity_mw=cap,
+        base_load_mw=b_load,
+        voltage_kv=v_val
+    )
+# ---------------------------------------------------------
 
 # --- 2. Sidebar Navigation ---
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Interactive Grid Map", "Proposed Projects Outlook"])
 
 # --- PAGE 1: GRID MAP ---
-# --- PAGE 1: GRID MAP ---
 if page == "Interactive Grid Map":
-    st.title("⚡ Interactive Grid Digital Twin")
+    st.markdown("## ⚡ Ontario Data Centre & Grid Capacity Digital Twin")
+    st.markdown("##### Substation Simulation: Evaluating 2026 IESO Forecasts for York Region Infrastructure.")
+    st.markdown("<br>", unsafe_allow_html=True)
     
-    # 1. Sidebar Inputs
+    # Sidebar Inputs
     st.sidebar.header("Simulation Parameters")
-    target_sub = st.sidebar.selectbox("Select Interconnection Substation", subs['name'].unique())
+    target_sub = st.sidebar.selectbox("Select Target Substation", subs['name'].unique())
     dc_load = st.sidebar.slider("Simulated DC Load (MW)", 0, 600, 100)
     
     st.sidebar.header("Map Layers")
-    show_subs = st.sidebar.toggle("Show Substations", value=True)
+    show_subs = st.sidebar.toggle("Substations", value=True)
+    show_gen = st.sidebar.toggle("Generation Sources", value=True)
+    show_dc = st.sidebar.toggle("Existing Data Centres", value=False)
+    show_flow = st.sidebar.toggle("Network Flow", value=True)
     
-    # Get data for the specific substation selected
-    selected_sub_data = subs[subs['name'] == target_sub].iloc[0]
+    st.sidebar.header("Base Map")
+    map_theme = st.sidebar.selectbox("Geography Layer Style", ["Dark (Default)", "Streets/Places", "Satellite", "Light"])
+    # Using Pydeck's built-in CartoDB basemaps which don't require an API key
+    theme_mapping = {
+        "Dark (Default)": "dark",
+        "Streets/Places": "road",
+        "Satellite": "satellite",
+        "Light": "light"
+    }
     
-    # 2. Build Map Layers
-    layers = []
+    # Substation data extraction
+    sub_info = subs[subs['name'] == target_sub].iloc[0]
     
-    # Add all substations if toggled on
+    # Digital Twin Engine (GridNode) - utilizing our scaled list
+    node = grid_nodes[target_sub]
+    
+    reliability = node.calculate_reliability(new_load_mw=dc_load, iterations=1000)
+    losses = node.estimate_losses(load_mw=dc_load)
+    remaining_headroom = sub_info.get('headroom_mw', node.capacity_mw - node.base_load_mw) - dc_load
+    
+    # Reliability Status
+    if reliability >= 99:
+        status = "EXCELLENT"
+        color = "Green Zone"
+    elif reliability >= 90:
+        status = "FEASIBLE"
+        color = "Requires IESO connection assessment"
+    else:
+        status = "HIGH RISK"
+        color = "Transformer upgrade likely required"
+        
+    # Build Map Layers
+    map_layers = []
+    
+    # Scaled Simulation: Evaluate reliability for ALL substations
+    def get_substation_color(sub_name):
+        n = grid_nodes.get(sub_name)
+        if not n:
+            return [150, 150, 150, 150]
+        # Use fewer iterations for the map to keep UI responsive
+        rel = n.calculate_reliability(new_load_mw=dc_load, iterations=200)
+        if rel >= 99:
+            return [0, 255, 0, 150]      # Green
+        elif rel >= 90:
+            return [255, 165, 0, 150]    # Orange
+        else:
+            return [255, 0, 0, 150]      # Red
+
+    # Color logic for substations based on dynamic Monte Carlo reliability
+    subs['color'] = subs['name'].apply(get_substation_color)
+
     if show_subs:
-        layers.append(pdk.Layer(
-            "ScatterplotLayer", 
+        map_layers.append(pdk.Layer(
+            "ScatterplotLayer",
             subs,
+            id="substations",
             get_position="[lon, lat]",
-            get_color="[0, 200, 255, 160]", # Light Blue
-            get_radius=500, 
+            get_color="color",
+            get_radius=500,
+            pickable=True,
+        ))
+        
+    if show_gen and gen is not None:
+        map_layers.append(pdk.Layer(
+            "ScatterplotLayer", gen, 
+            id="generation",
+            get_position="[lon, lat]",
+            get_color="[255, 200, 0, 200]", 
+            get_radius=2000, 
             pickable=True
         ))
+
+    if show_dc and dc is not None:
+        map_layers.append(pdk.Layer(
+            "ColumnLayer", dc, 
+            id="data-centres",
+            get_position="[lon, lat]",
+            get_elevation="load_mw * 10", 
+            elevation_scale=1,
+            get_fill_color="[200, 30, 30, 150]", 
+            radius=800, 
+            pickable=True
+        ))
+        
+    # Proposed DC logic (pulse effect visually indicated)
+    proposed_dc_loc = pd.DataFrame([{
+        'name': 'Proposed DC Site',
+        'lat': sub_info['lat'] + 0.01, # Offset slightly for visibility
+        'lon': sub_info['lon'] + 0.01,
+        'load_mw': dc_load
+    }])
     
-    # Add a Red Highlight for the selected substation
-    layers.append(pdk.Layer(
-        "ScatterplotLayer", 
-        pd.DataFrame([selected_sub_data]),
+    map_layers.append(pdk.Layer(
+        "ScatterplotLayer", proposed_dc_loc, 
+        id="proposed-dc",
         get_position="[lon, lat]",
-        get_color="[255, 0, 0, 255]", # Solid Red
-        get_radius=800,
+        get_color="[0, 255, 100, 255]", 
+        get_radius=1000,
     ))
 
-    # 3. Render the Map (Only once!)
-    st.pydeck_chart(pdk.Deck(
-        map_style='mapbox://styles/mapbox/dark-v10',
-        initial_view_state=pdk.ViewState(
-            latitude=selected_sub_data['lat'], 
-            longitude=selected_sub_data['lon'], 
-            zoom=10, 
-            pitch=45
-        ),
-        layers=layers,
-        tooltip={"text": "{name}\nHeadroom: {headroom_mw} MW"}
-    ))
-    
-    # 4. Metrics display
-    st.metric("Net Headroom (Post-Simulation)", f"{selected_sub_data['headroom_mw'] - dc_load:.1f} MW")
+    # Energy Flow lines (Arcs)
+    if show_flow and gen is not None:
+        flow_lines = []
+        for _, g in gen.iterrows():
+            flow_lines.append({'start': [g.lon, g.lat], 'end': [sub_info.lon, sub_info.lat]})
+        
+        map_layers.append(pdk.Layer(
+            "ArcLayer", pd.DataFrame(flow_lines), 
+            id="flow-arcs",
+            get_source_position="start", 
+            get_target_position="end",
+            get_source_color="[255, 200, 0]", 
+            get_target_color="[0, 200, 255]", 
+            width=2
+        ))
+
+    # Layout: Metrics & Map
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+        st.markdown("#### Node Analysis")
+        st.markdown(f"**Target Node:** `{target_sub}`")
+        st.metric("Net Headroom (MW)", f"{remaining_headroom:.2f}", delta=-dc_load)
+        
+        st.markdown(f"**Reliability Probability:** `{reliability:.2f}%`")
+        st.markdown(f"**Estimated Heat Loss (I²R):** `{losses:.4f} MW`")
+        st.markdown(f"**Status:** `{status}` - *{color}*")
+        
+        st.markdown("---")
+        
+        if status == "HIGH RISK":
+            st.error("**Recommendation:** Transformer Upgrade Required for 2026 Capacity.")
+        elif status == "FEASIBLE":
+            st.warning("**Recommendation:** Viable, but grid stress observed. Requires IESO connection assessment.")
+        else:
+            st.success("**Recommendation:** Grid Node appears highly viable for development.")
+            
+        st.caption("**Technical Note:** Calculations incorporate a 1.15 Safety Factor and I²R loss estimates, alongside a Monte Carlo simulation (1000 iterations) with +/- 10% ambient grid fluctuation.")
+
+    with col2:
+        st.pydeck_chart(pdk.Deck(
+            map_style=theme_mapping[map_theme],
+            initial_view_state=pdk.ViewState(
+                latitude=sub_info['lat'],
+                longitude=sub_info['lon'],
+                zoom=8,
+                pitch=45,
+            ),
+            layers=map_layers,
+            tooltip={"html": "<b>{name}</b><br/>Capacity/Load: {capacity_mw}{load_mw} MW<br/>Headroom: {headroom_mw} MW", "style": {"backgroundColor": "steelblue", "color": "white", "maxWidth": "300px", "wordWrap": "break-word"}}
+        ))
+        
+        # Add a custom Legend below the map
+        with st.expander("🗺️ Map Legend", expanded=True):
+            st.markdown("""
+            - 🟩 **Substation (Green):** Highly Viable / Excellent Headroom
+            - 🟧 **Substation (Orange):** Feasible / Moderate Stress
+            - 🟥 **Substation (Red):** High Risk / Upgrade Required
+            - 🟡 **Generation Source:** Existing Power Generation (Nuclear, Hydro, Gas, etc.)
+            - 🟥 **Column (Dark Red):** Existing Data Centres
+            - 🟢 **Pulse Point (Bright Green):** Proposed Data Centre Location
+            - 🟡 〰️ 🔵 **Arc Lines:** Network Flow (Generation -> Substation)
+            """)
+
 # --- PAGE 2: PROPOSED PROJECTS ---
 else:
     st.title("📈 Ontario Data Centre Market Outlook")
