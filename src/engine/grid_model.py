@@ -12,15 +12,19 @@ class GridNode:
         self.base_load_mw = base_load_mw
         self.voltage_kv = voltage_kv
 
+    def simulate_loads(self, new_load_mw: float, iterations: int = 1000) -> np.ndarray:
+        """
+        Runs Monte Carlo simulation and returns raw load array.
+        """
+        fluctuations = np.random.normal(1.0, 0.10, iterations)
+        return (self.base_load_mw * fluctuations) + new_load_mw
+
     def calculate_reliability(self, new_load_mw: float, iterations: int = 1000) -> float:
         """
         Performs a Monte Carlo simulation to determine the probability 
         that the node stays within capacity limits.
         """
-        # Simulate ambient grid fluctuation (standard deviation of 10%)
-        fluctuations = np.random.normal(1.0, 0.10, iterations)
-        simulated_loads = (self.base_load_mw * fluctuations) + new_load_mw
-        
+        simulated_loads = self.simulate_loads(new_load_mw, iterations)
         successes = np.sum(simulated_loads <= self.capacity_mw)
         return (successes / iterations) * 100
 

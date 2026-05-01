@@ -88,7 +88,7 @@ for idx, row in subs.iterrows():
 
 # --- 2. Sidebar Navigation ---
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Interactive Grid Map", "Proposed Projects Outlook"])
+page = st.sidebar.radio("Go to", ["Interactive Grid Map", "Monte Carlo Analytics", "Proposed Projects Outlook"])
 
 # --- PAGE 1: GRID MAP ---
 if page == "Interactive Grid Map":
@@ -271,7 +271,52 @@ if page == "Interactive Grid Map":
             - 🟡 〰️ 🔵 **Arc Lines:** Network Flow (Generation -> Substation)
             """)
 
-# --- PAGE 2: PROPOSED PROJECTS ---
+# --- PAGE 2: MONTE CARLO ANALYTICS ---
+elif page == "Monte Carlo Analytics":
+    st.markdown("## 🎲 Monte Carlo Risk Analytics")
+    st.markdown("##### Probabilistic Distribution of Grid Load Scenarios")
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("Simulation Parameters")
+        target_sub = st.selectbox("Select Target Substation", subs['name'].unique(), key="mc_sub")
+        dc_load = st.slider("Simulated DC Load (MW)", 0, 600, 100, key="mc_slider")
+        iterations = st.slider("Simulation Iterations", 1000, 10000, 5000, step=1000)
+        
+        node = grid_nodes[target_sub]
+        simulated_loads = node.simulate_loads(new_load_mw=dc_load, iterations=iterations)
+        reliability = (np.sum(simulated_loads <= node.capacity_mw) / iterations) * 100
+        
+        st.markdown("---")
+        st.markdown(f"**Target Node:** `{target_sub}`")
+        st.markdown(f"**Base Capacity:** `{node.capacity_mw} MW`")
+        st.markdown(f"**Proposed Load:** `+{dc_load} MW`")
+        st.markdown(f"**Reliability Probability:** `{reliability:.2f}%`")
+        
+        if reliability < 100:
+            st.warning(f"**Risk Detected:** There is a `{100-reliability:.2f}%` chance that the grid will exceed maximum capacity under peak conditions.")
+        else:
+            st.success("**Safe:** The grid is projected to handle the load without exceeding capacity under all simulated scenarios.")
+            
+    with col2:
+        fig = px.histogram(
+            x=simulated_loads, 
+            nbins=50, 
+            title=f"Load Distribution for {target_sub} (+ {dc_load} MW)",
+            labels={'x': 'Total Projected Load (MW)', 'y': 'Frequency (Scenarios)'},
+            color_discrete_sequence=['#1f77b4']
+        )
+        
+        # Add vertical line for capacity
+        fig.add_vline(x=node.capacity_mw, line_dash="dash", line_color="red", 
+                      annotation_text=f"Max Capacity ({node.capacity_mw} MW)", annotation_position="top right")
+        
+        fig.update_layout(xaxis_title="Total Projected Load (MW)", yaxis_title="Frequency")
+        st.plotly_chart(fig, use_container_width=True)
+
+# --- PAGE 3: PROPOSED PROJECTS ---
 else:
     st.title("📈 Ontario Data Centre Market Outlook")
     
