@@ -14,10 +14,14 @@ class GridNode:
 
     def simulate_loads(self, new_load_mw: float, iterations: int = 1000) -> np.ndarray:
         """
-        Runs Monte Carlo simulation and returns raw load array.
+        Runs Monte Carlo simulation using a Triangular Distribution and returns raw load array.
         """
-        fluctuations = np.random.normal(1.0, 0.10, iterations)
-        return (self.base_load_mw * fluctuations) + new_load_mw
+        peak_demand = self.base_load_mw
+        typical_demand = peak_demand * 0.70
+        min_demand = peak_demand * 0.40
+        
+        ambient_loads = np.random.triangular(min_demand, typical_demand, peak_demand, iterations)
+        return ambient_loads + new_load_mw
 
     def calculate_reliability(self, new_load_mw: float, iterations: int = 1000) -> float:
         """

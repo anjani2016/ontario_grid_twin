@@ -2,8 +2,107 @@ help file to execute the project
 
 # Ontario Data Centre & Grid Capacity Digital Twin
 
+
+# Project Framework: Ontario Grid Digital Twin
+
+## Purpose
+The purpose of this project is to assist in high‑level engineering tasks including writing, fixing, and understanding code for power‑grid simulations.  
+The assistant supports the development of code required to model the impact of hyperscale data centres on the Ontario power grid.
+
+## Goals
+- **Code Creation:** Generate complete, functional code to achieve simulation goals.  
+- **Education:** Explain the steps involved in code development to enhance user understanding.  
+- **Clear Instructions:** Provide easy‑to‑understand implementation guides for building and running the code.  
+- **Thorough Documentation:** Document each part of the code and logic clearly.
+
+---
+
 ## 1. Project Overview
 This project is a **Capacity-Demand Digital Twin** designed to evaluate the feasibility of connecting high-load Data Centres to Ontario's electrical grid. By intersecting 2026 IESO (Independent Electricity System Operator) forecast data with geospatial infrastructure maps, the tool identifies "Optimal Zones" where high headroom, low transmission loss, and grid reliability align.
+
+---
+
+## Key Development Pillars
+
+### 1. Probabilistic Modeling
+Transitioning from hardcoded peak loads to **Triangular Distributions**  
+
+
+\[
+(min,\ mode,\ max)
+\]
+
+  
+to more accurately reflect grid reliability and uncertainty.
+
+### 2. Real‑World Data Integration
+Replacing synthetic dummy data with real project data from:
+- **Baxtel** (data centre locations)
+- **National Observer** (demand figures and reporting)
+
+### 3. Climate Efficiency Modeling
+Implementing **non‑linear cooling models** for evaporative systems based on ambient temperature brackets.
+
+### 4. Grid Reliability
+Calculating:
+- **Available Headroom**  
+- **Risk probabilities**  
+for substations such as the **Claireville–York Junction** and others.
+
+---
+
+## Technical Stack & Sources
+
+### Languages & Libraries
+- **Python**
+  - NumPy  
+  - Pandas  
+  - GeoPandas  
+  - Streamlit  
+
+### Data Sources
+- **Project Locations:** Baxtel.com/map  
+- **Demand Figures:** National Observer  
+- **Weather Data:** Open‑Meteo API  
+- **Efficiency Logic:** ASHRAE TC 9.9 Thermal Guidelines  
+
+---
+
+## Cooling Efficiency Reference Table
+
+| Temperature Range (°C) | Cooling Mode             | Savings Factor |
+|------------------------|--------------------------|----------------|
+| 10 to 20               | Evaporative Support      | 10%            |
+| 0 to 10                | Partial Free Cooling     | 30%            |
+| -10 to 0               | Full Free Cooling        | 50%            |
+| -20 to -10             | Peak Efficiency          | 70%            |
+
+**Engineering Note:**  
+A mandatory **8% cooling floor** is integrated into the code to account for internal fan power and heat rejection, even in extreme cold.
+
+---
+
+
+
+### 2. Overview the Solution
+Review:
+- development steps  
+- mathematical assumptions  
+- reliability logic  
+before running the simulation.
+
+### 3. Deploy Code
+Copy the modular blocks for:
+- Monte Carlo sampling  
+- Climate ingestion  
+- Headroom calculation  
+into your `app.py` environment.
+
+---
+
+
+
+
 
 ### Key Features
 *   **Geospatial Mapping:** Visualization of 230kV and 500kV transmission infrastructure in the York Region.
@@ -24,16 +123,7 @@ This project is a **Capacity-Demand Digital Twin** designed to evaluate the feas
 
 ## 3. Project Structure
 ```text
-ontario_grid_twin/
-├── data/
-│   ├── raw/            # IESO forecasts and raw GIS Parquet files
-│   └── processed/      # Analyzed substation data with headroom metrics
-├── src/
-│   ├── engine/         # Logic for Capacity Analysis and DC Simulation
-│   ├── utils/          # Data harvesting and grid generation scripts
-│   └── app.py          # Streamlit Dashboard UI
-├── README.md
-└── requirements.txt
+
 
 
 
@@ -54,57 +144,11 @@ ontario_grid_twin/
 
 
 
-### Notes on requirements.txt 
 
-- include libraries needed
-
-### Virtual Environment - creation , activation and installation of requirments
-
-- check pyenv python versions ```pyenv versions```
-
-- Navigate to your project ```cd path/to/your/project```
-
-- Set the local version for this folder ```pyenv local 3.11.9``` . select the version needed. the requirements need 3.11+
 
 - 
 
-- Create the environment folder with a specific version of python (<3.11>) to ensure ydata-profiling runs ``` python3.11 -m venv etrans_env```
-
-- Activate it (Windows) ``` .\energy_env_p3.11\Scripts\activate```
-
-- OR Activate it (Mac/Linux) ``` source etrans_env/bin/activate ```
-
-- install your requirements: ``` pip install -r requirements.txt```
-
-- check dependancies installed ```pip list```
-
-- check installation of specific library ```pip show pandas```
-
-- Clean Up if needed: Run this to clear out any half-installed junk: ```pip cache purge
-
-- Re-install your requirements: ```pip install --force-reinstall -r requirements.txt
-
-
-- virtual environment
-
-- Create a virtual environment: Open your terminal, navigate to your project directory and run ``` python3 -m venv .venv ```
-
-- Activate the environment:  ``` source risk_env/bin/activate ```
 
 
 
-- Install packages with a requirements.txt file - preferable  ``` pip install -r requirements.txt ```
-
-
-- Run ```python setup_workspace.py``` to setup the work folders
-
-- extract data . Run ```python src/utils/data_harvester.py```
-
-- Verify: Check your data/raw/ folder. You should now see:
-
-    - ontario_lines.parquet
-
-    - york_substations.parquet
-
-    - ieso_2026_forecast.csv
 
