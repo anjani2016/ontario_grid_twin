@@ -5,36 +5,84 @@ import numpy as np
 import os
 from engine.grid_model import GridNode
 
+# ── Category constants ────────────────────────────────────────────────────────
+# Ordered list of all generation categories shown in the map sidebar
+GENERATION_CATEGORIES = ["Nuclear", "Hydro", "Fossil", "Renewable", "Storage"]
+
+# RGBA colours per category for pydeck layers
+GENERATION_CATEGORY_COLORS = {
+    "Nuclear":   [255,  70, 180, 220],   # magenta-pink
+    "Hydro":     [ 30, 144, 255, 220],   # dodger blue
+    "Fossil":    [255, 100,  30, 220],   # orange-red
+    "Renewable": [ 50, 205,  50, 220],   # lime green
+    "Storage":   [180, 100, 255, 220],   # purple
+}
+
+def _normalize_gen(gen: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Ensure 'fuel_type' and 'category' columns are present.
+    Older parquet files only have a 'type' column; map those forward.
+    """
+    # Back-compat: if new columns already exist just return
+    if 'fuel_type' not in gen.columns:
+        gen['fuel_type'] = gen.get('type', 'Unknown')
+    if 'category' not in gen.columns:
+        # Derive category from fuel_type for legacy data
+        _cat_map = {
+            'nuclear': 'Nuclear', 'hydro': 'Hydro',
+            'natural gas': 'Fossil', 'gas': 'Fossil', 'oil': 'Fossil',
+            'wind': 'Renewable', 'solar': 'Renewable',
+            'biofuel': 'Renewable', 'biomass': 'Renewable',
+            'battery': 'Storage', 'storage': 'Storage',
+        }
+        gen['category'] = (
+            gen['fuel_type'].str.lower()
+            .map(lambda v: next(
+                (cat for key, cat in _cat_map.items() if key in v), 'Renewable'
+            ))
+        )
+    # Assign pydeck RGBA colour list per row
+    gen['color'] = gen['category'].map(
+        lambda c: GENERATION_CATEGORY_COLORS.get(c, [200, 200, 200, 200])
+    )
+    return gen
+
+
 @st.cache_data
 def load_base_grid():
     """
     Loads substation, line, generation, and existing DC data.
     """
-    subs_path = 'data/processed/analyzed_substations.parquet'
+    # Prefer demo IESO-derived substations when present.
+    # NOTE: this file can contain triangulated coordinates inferred from region/city
+    # names for demonstration only. Replace with clean geocoded substation data when available.
+    demo_subs_path = 'data/raw/ieso_substations_demo.parquet'
+    subs_path = demo_subs_path if os.path.exists(demo_subs_path) else 'data/processed/analyzed_substations.parquet'
     lines_path = 'data/raw/ontario_lines.parquet'
-    gen_path = 'data/raw/generation_sources.parquet'
-    dc_path = 'data/raw/existing_dc.parquet'
-    
+    gen_path   = 'data/raw/generation_sources.parquet'
+    dc_path    = 'data/raw/existing_dc.parquet'
+
     # Substations
     subs = gpd.read_parquet(subs_path).to_crs(epsg=4326)
     subs['lon'] = subs.geometry.x
-    subs['lat'] = subs.geometry.y
-    
+    subs['lat']  = subs.geometry.y
+
     # Optional files
     lines = gpd.read_parquet(lines_path).to_crs(epsg=4326) if os.path.exists(lines_path) else None
-    
+
     gen = None
     if os.path.exists(gen_path):
         gen = gpd.read_parquet(gen_path).to_crs(epsg=4326)
         gen['lon'] = gen.geometry.x
-        gen['lat'] = gen.geometry.y
-        
+        gen['lat']  = gen.geometry.y
+        gen = _normalize_gen(gen)
+
     dc = None
     if os.path.exists(dc_path):
         dc = gpd.read_parquet(dc_path).to_crs(epsg=4326)
         dc['lon'] = dc.geometry.x
-        dc['lat'] = dc.geometry.y
-    
+        dc['lat']  = dc.geometry.y
+
     return subs, lines, gen, dc
 
 @st.cache_data

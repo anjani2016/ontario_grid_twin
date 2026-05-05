@@ -1,5 +1,8 @@
 import streamlit as st
 import pandas as pd
+from utils.ui_branding import apply_branding
+
+apply_branding()
 
 # Check if data is loaded (optional for this static-ish page, but good for consistency)
 if 'data_loaded' not in st.session_state:
@@ -7,11 +10,12 @@ if 'data_loaded' not in st.session_state:
 
 def render_project_charter():
     st.title("📋 Project Charter: Ontario Grid Digital Twin")
-    st.subheader("Substation Reliability & Data Centre Impact Analysis")
+    st.subheader("Capacity-demand digital twin for large step load interconnection screening")
     
     st.markdown("""
-    **Purpose:** To provide a high-fidelity simulation environment for evaluating the 
-    interconnection of hyperscale data centres within the Ontario power grid.
+    **Purpose:** Provide a practical planning-grade sandbox to evaluate where large
+    new loads (e.g., data centres) can be connected with acceptable reliability risk,
+    available headroom, and transparent engineering assumptions.
     """)
 
     st.divider()
@@ -20,24 +24,69 @@ def render_project_charter():
     with col1:
         st.markdown("### 🛠️ Technical Stack")
         st.write("- **Language:** Python 3.11")
-        st.write("- **Simulation:** NumPy (Monte Carlo)")
-        st.write("- **GIS:** GeoPandas & PyDeck")
+        st.write("- **App Framework:** Streamlit multi-page architecture")
+        st.write("- **Data + Analytics:** Pandas, NumPy")
+        st.write("- **Geospatial:** GeoPandas, Shapely, PyDeck")
+        st.write("- **Storage:** Parquet/GeoParquet")
+        st.write("- **Data Ingestion:** IESO public XML feeds + local curated datasets")
     
     with col2:
         st.markdown("### 📊 Methodology")
-        st.write("- Probabilistic Risk Assessment")
-        st.write("- Non-Linear Cooling Efficiency")
-        st.write("- Multi-Source Data Harmonization")
+        st.write("- **Probabilistic Reliability:** Monte Carlo simulation with triangular load profile")
+        st.write("- **Electrical Stress Proxy:** I²R-based loss estimation for incremental load impact")
+        st.write("- **Headroom Logic:** Capacity minus safety-adjusted base load")
+        st.write("- **Cooling Context:** Non-linear free-cooling efficiency with 8% floor")
+        st.write("- **Regional Planning Lens:** Linked substation + generation filtering by region")
 
     st.divider()
 
     st.markdown("### 🔍 Verified Data Sources")
     sources_data = {
-        "Category": ["Project Locations", "Project Demand", "Grid Capacity", "Climate Data"],
-        "Source": ["Baxtel.com", "National Observer", "IESO Projections", "Open-Meteo API"],
-        "Details": ["Verified Site Maps", "2,202 MW Proposed", "2026 Peak Projections", "Historical Temp Profiles"]
+        "Category": [
+            "Substation/Transmission Operating Context",
+            "Generation Fleet Layer",
+            "Data Centre Project Pipeline",
+            "Regional Demand Outlook",
+            "Planning Method Reference",
+            "Climate Context",
+        ],
+        "Source": [
+            "IESO Public Reports (Tx Limits XML)",
+            "IESO-aligned generation source dataset (local curated parquet)",
+            "Baxtel + National Observer",
+            "IESO 2026 forecast template (project data file)",
+            "IESO Large Step Loads Technical Paper (Jul 2025)",
+            "Open-Meteo API",
+        ],
+        "Details": [
+            "Transmission interface limits used for demo substation synthesis",
+            "Category/fuel/capacity map layer used in network visualization",
+            "Project-level capacity and status used in outlook analytics",
+            "Regional peak demand/capacity assumptions for scenario framing",
+            "Figure 3 schematic embedded for planning process reference",
+            "Temperature context used for cooling-efficiency interpretation",
+        ]
     }
     st.table(pd.DataFrame(sources_data))
+
+    st.divider()
+    st.markdown("### 🧭 IESO Large Step Loads Schematic")
+    st.caption(
+        "Reference: IESO Demand & Conservation Planning Technical Paper - Large Step Loads (July 2025), "
+        "Figure 3 (page 7)."
+    )
+    # Internal note: this image is rendered from a local PDF snapshot for demo reproducibility.
+    # Replace with a clean, versioned asset workflow if/when IESO provides a canonical image endpoint.
+    st.image(
+        "data/raw/references/ieso_large_step_loads_figure3_page7.png",
+        caption="Figure 3 - Large Step Loads planning schematic (IESO, Jul 2025)",
+        use_container_width=True,
+    )
+    st.markdown(
+        "[View source document (IESO PDF)]"
+        "(https://www.ieso.ca/-/media/Files/IESO/Document-Library/planning-forecasts/demand-research/"
+        "Demand-Conservation-Planning-Technical-Paper-Large-Step-Loads-202507.pdf)"
+    )
 
     st.divider()
     st.markdown("### ❄️ Cooling Efficiency Reference")

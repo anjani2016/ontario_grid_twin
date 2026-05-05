@@ -1,154 +1,92 @@
-help file to execute the project
+# Ontario Grid Digital Twin
 
-# Ontario Data Centre & Grid Capacity Digital Twin
-
-
-# Project Framework: Ontario Grid Digital Twin
+Capacity-demand digital twin for screening large new electrical loads (e.g., data centres) against Ontario grid constraints.
 
 ## Purpose
-The purpose of this project is to assist in high‑level engineering tasks including writing, fixing, and understanding code for power‑grid simulations.  
-The assistant supports the development of code required to model the impact of hyperscale data centres on the Ontario power grid.
 
-## Goals
-- **Code Creation:** Generate complete, functional code to achieve simulation goals.  
-- **Education:** Explain the steps involved in code development to enhance user understanding.  
-- **Clear Instructions:** Provide easy‑to‑understand implementation guides for building and running the code.  
-- **Thorough Documentation:** Document each part of the code and logic clearly.
+This project provides a planning-grade interactive environment to evaluate:
 
----
+- substation headroom and reliability under incremental load
+- regional generation visibility and capacity context
+- portfolio-level data-centre demand outlooks
 
-## 1. Project Overview
-This project is a **Capacity-Demand Digital Twin** designed to evaluate the feasibility of connecting high-load Data Centres to Ontario's electrical grid. By intersecting 2026 IESO (Independent Electricity System Operator) forecast data with geospatial infrastructure maps, the tool identifies "Optimal Zones" where high headroom, low transmission loss, and grid reliability align.
+The app is intended for scenario screening, not final interconnection approval.
 
----
+## Current Capabilities
 
-## Key Development Pillars
+- **Interactive Grid Map** (`src/pages/1_Interactive_Grid_Map.py`)
+  - Substation selection with simulated added MW load
+  - Reliability status, headroom metrics, and map-based overlays
+  - Generation source category filters with dynamic capacity display
+  - Region filter that scopes both substations and generation layers
+- **Monte Carlo Analytics** (`src/pages/2_Monte_Carlo_Analytics.py`)
+  - Triangular-distribution load simulation and risk visualization
+- **Data Centre Outlook** (`src/pages/3_Data_Centres_Projected.py`)
+  - Pipeline filtering by region/year/status/type
+- **Project Charter** (`src/pages/0_Project_Charter.py`)
+  - Updated methodology, assumptions, and source references
 
-### 1. Probabilistic Modeling
-Transitioning from hardcoded peak loads to **Triangular Distributions**  
+## Technical Stack
 
+- **Language:** Python 3.11
+- **App/UI:** Streamlit multi-page app
+- **Data + Simulation:** Pandas, NumPy
+- **Geospatial:** GeoPandas, Shapely, PyDeck
+- **Storage:** Parquet / GeoParquet (`pyarrow`)
+- **Runtime:** local virtual environment (`etrans_env`)
 
-\[
-(min,\ mode,\ max)
-\]
+## Methodology Snapshot
 
-  
-to more accurately reflect grid reliability and uncertainty.
+- **Reliability modeling:** Monte Carlo simulation with triangular load profile
+- **Headroom logic:** `capacity_mw - (current_load_mw * safety_factor)`
+- **Loss proxy:** I2R-style incremental stress estimate
+- **Cooling context:** non-linear free-cooling logic with fixed minimum floor
+- **Regional coherence:** shared region filter across substation and generation layers
 
-### 2. Real‑World Data Integration
-Replacing synthetic dummy data with real project data from:
-- **Baxtel** (data centre locations)
-- **National Observer** (demand figures and reporting)
+## Data Sources (Current Project State)
 
-### 3. Climate Efficiency Modeling
-Implementing **non‑linear cooling models** for evaporative systems based on ambient temperature brackets.
+- **IESO public reports** (transmission limits XML feed) for demo substation synthesis
+- **Local generation source dataset** (`data/raw/generation_sources.parquet`)
+- **Data-centre project datasets** (Baxtel and National Observer-derived)
+- **IESO planning context** (`data/raw/ieso_2026_forecast.csv`)
+- **IESO technical reference**: Large Step Loads paper (Figure 3 integrated in charter page)
+- **Open-Meteo** for climate context
 
-### 4. Grid Reliability
-Calculating:
-- **Available Headroom**  
-- **Risk probabilities**  
-for substations such as the **Claireville–York Junction** and others.
+## Demo Substation Data Note
 
----
+The project currently supports a demo IESO-derived substation dataset:
 
-## Technical Stack & Sources
+- Builder: `data/raw/build_ieso_substations_demo.py`
+- Output: `data/raw/ieso_substations_demo.parquet`
 
-### Languages & Libraries
-- **Python**
-  - NumPy  
-  - Pandas  
-  - GeoPandas  
-  - Streamlit  
+This dataset triangulates coordinates from inferred region/city context because IESO public feeds do not provide a clean geocoded station master in the current integration path.
 
-### Data Sources
-- **Project Locations:** Baxtel.com/map  
-- **Demand Figures:** National Observer  
-- **Weather Data:** Open‑Meteo API  
-- **Efficiency Logic:** ASHRAE TC 9.9 Thermal Guidelines  
+When clean geocoded substation data becomes available, replace the demo parquet and keep the same required fields:
 
----
+- `name`, `region`, `capacity_mw`, `current_load_mw`, `headroom_mw`, `geometry` (EPSG:4326)
 
-## Cooling Efficiency Reference Table
+## Running the App
 
-| Temperature Range (°C) | Cooling Mode             | Savings Factor |
-|------------------------|--------------------------|----------------|
-| 10 to 20               | Evaporative Support      | 10%            |
-| 0 to 10                | Partial Free Cooling     | 30%            |
-| -10 to 0               | Full Free Cooling        | 50%            |
-| -20 to -10             | Peak Efficiency          | 70%            |
+From repo root:
 
-**Engineering Note:**  
-A mandatory **8% cooling floor** is integrated into the code to account for internal fan power and heat rejection, even in extreme cold.
+```bash
+source etrans_env/bin/activate
+streamlit run src/app.py
+```
 
----
+## Repository Structure
 
-
-
-### 2. Overview the Solution
-Review:
-- development steps  
-- mathematical assumptions  
-- reliability logic  
-before running the simulation.
-
-### 3. Deploy Code
-Copy the modular blocks for:
-- Monte Carlo sampling  
-- Climate ingestion  
-- Headroom calculation  
-into your `app.py` environment.
-
----
-
-
-
-
-
-### Key Features
-*   **Geospatial Mapping:** Visualization of 230kV and 500kV transmission infrastructure in the York Region.
-*   **Headroom Engine:** Regional load distribution based on the IESO 2026 Annual Planning Outlook (APO).
-*   **Stochastic Simulation:** 1,000-iteration Monte Carlo stress tests to determine node reliability.
-*   **Loss Analysis:** Real-time calculation of $I^2R$ transmission losses.
-
----
-
-## 2. Technical Stack
-*   **Language:** Python 3.11+
-*   **GIS Libraries:** `GeoPandas`, `Shapely`, `Pydeck`
-*   **Data Science:** `Pandas`, `NumPy`
-*   **Dashboard:** `Streamlit`
-*   **Storage:** `Apache Parquet` (via `pyarrow`) for high-performance geospatial querying.
-
----
-
-## 3. Project Structure
 ```text
-
-
-
-
-- **Notes**
-### Folder Structure
-
 ontario_grid_twin/
-├── setup_workspace.py   <-- Save the code here
 ├── data/
-│   ├── raw/            # NRCan, IESO, and OSM files
-│   └── processed/      # Cleaned GeoParquet files for DuckDB
+│   ├── raw/                # source and intermediate datasets
+│   └── processed/          # analyzed/derived datasets
 ├── src/
-│   ├── engine/         # Headroom and Loss calculation logic
-│   ├── utils/          # GIS and distance helpers
-│   └── app.py          # Streamlit Dashboard
+│   ├── app.py              # Streamlit entrypoint
+│   ├── engine/             # loaders and simulation engine
+│   ├── pages/              # Streamlit pages
+│   └── utils/              # data harvesters and helpers
+├── tests/
 ├── requirements.txt
-└── .env                # For API keys (if using Mapbox for Lonboard)
-
-
-
-
-
-- 
-
-
-
-
-
+└── CHANGELOG.md
+```

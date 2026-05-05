@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-05-05
+### Added
+- **Demo IESO Substation Builder:** Added `data/raw/build_ieso_substations_demo.py` to fetch IESO public transmission interface XML and build a demo substation dataset.
+- **Triangulated Demo Geocoding:** Implemented region/city-based triangulation around Ontario regional anchors to create map coordinates when clean station geodata is unavailable.
+- **Substation Region Filter:** Added `Substation Regions` sidebar multiselect in `src/pages/1_Interactive_Grid_Map.py` to filter map and analysis scope.
+
+### Changed
+- **Generation/Substation Regional Link:** Connected generation source display, flow arcs, and summary totals to the selected substation regions for consistent regional filtering.
+- **Generation Filter UX:** Moved generation filter block above simulation parameters and updated labels to include dynamic per-category and total capacity in `MW/day` (1 decimal).
+- **Substation Data Preference:** Updated `src/engine/data_loader.py` to prefer `data/raw/ieso_substations_demo.parquet` when present, with explicit internal note that triangulated coordinates are demo-only until clean geocoded data is available.
+
+### Migration Note
+- To migrate to clean geocoded substations, replace `data/raw/ieso_substations_demo.parquet` with a validated dataset containing true `geometry` (EPSG:4326) and required fields (`name`, `region`, `capacity_mw`, `current_load_mw`, `headroom_mw`, optional `voltage`).
+- Remove or archive `data/raw/build_ieso_substations_demo.py` once a production substation source is established, and keep `src/engine/data_loader.py` pointed at the clean parquet path.
+
 ## [1.2.0] - 2026-05-04
 ### Added
 - **Multi-Page Architecture:** Refactored single-script `app.py` into a modular multi-page Streamlit app.

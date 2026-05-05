@@ -1,6 +1,9 @@
 import streamlit as st
 import plotly.express as px
 import numpy as np
+from utils.ui_branding import apply_branding
+
+apply_branding()
 
 if 'data_loaded' not in st.session_state:
     st.error("Please return to the [Home Page](../main.py) to initialize the application data.")
