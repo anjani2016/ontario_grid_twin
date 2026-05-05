@@ -55,11 +55,12 @@ def load_base_grid():
     # Prefer demo IESO-derived substations when present.
     # NOTE: this file can contain triangulated coordinates inferred from region/city
     # names for demonstration only. Replace with clean geocoded substation data when available.
-    demo_subs_path = 'data/raw/ieso_substations_demo.parquet'
-    subs_path = demo_subs_path if os.path.exists(demo_subs_path) else 'data/processed/analyzed_substations.parquet'
-    lines_path = 'data/raw/ontario_lines.parquet'
-    gen_path   = 'data/raw/generation_sources.parquet'
-    dc_path    = 'data/raw/existing_dc.parquet'
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    demo_subs_path = os.path.join(BASE_DIR, 'data/raw/ieso_substations_demo.parquet')
+    subs_path = demo_subs_path if os.path.exists(demo_subs_path) else os.path.join(BASE_DIR, 'data/processed/analyzed_substations.parquet')
+    lines_path = os.path.join(BASE_DIR, 'data/raw/ontario_lines.parquet')
+    gen_path   = os.path.join(BASE_DIR, 'data/raw/generation_sources.parquet')
+    dc_path    = os.path.join(BASE_DIR, 'data/raw/existing_dc.parquet')
 
     import geopandas as gpd
     # Substations
@@ -91,7 +92,8 @@ def load_dc_projects():
     Loads Ontario data centre project data (Baxtel or National Observer).
     """
     PROVINCIAL_INTEREST_MW = 6500.0
-    BAXTEL_PATH = 'data/raw/baxtel_projects.parquet'
+    BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    BAXTEL_PATH = os.path.join(BASE_DIR, 'data/raw/baxtel_projects.parquet')
 
     def categorize_type(mw):
         if pd.isna(mw):      return 'Unknown'
