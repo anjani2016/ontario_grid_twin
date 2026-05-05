@@ -78,7 +78,7 @@ def render_project_charter():
     # Internal note: this image is rendered from a local PDF snapshot for demo reproducibility.
     # Replace with a clean, versioned asset workflow if/when IESO provides a canonical image endpoint.
     st.image(
-        "data/raw/references/ieso_large_step_loads_figure3_page7.png",
+        "data/assets/datacentre_components.png",
         caption="Figure 3 - Large Step Loads planning schematic (IESO, Jul 2025)",
         use_container_width=True,
     )

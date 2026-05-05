@@ -6,7 +6,7 @@ from utils.ui_branding import apply_branding
 apply_branding()
 
 if 'data_loaded' not in st.session_state:
-    st.error("Please return to the [Home Page](../main.py) to initialize the application data.")
+    st.error("Please return to the [Home Page](../app.py) to initialize the application data.")
     st.stop()
 
 subs = st.session_state['subs']

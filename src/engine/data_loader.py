@@ -1,5 +1,4 @@
 import streamlit as st
-import geopandas as gpd
 import pandas as pd
 import numpy as np
 import os
@@ -18,7 +17,7 @@ GENERATION_CATEGORY_COLORS = {
     "Storage":   [180, 100, 255, 220],   # purple
 }
 
-def _normalize_gen(gen: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+def _normalize_gen(gen) -> 'gpd.GeoDataFrame':
     """
     Ensure 'fuel_type' and 'category' columns are present.
     Older parquet files only have a 'type' column; map those forward.
@@ -62,6 +61,7 @@ def load_base_grid():
     gen_path   = 'data/raw/generation_sources.parquet'
     dc_path    = 'data/raw/existing_dc.parquet'
 
+    import geopandas as gpd
     # Substations
     subs = gpd.read_parquet(subs_path).to_crs(epsg=4326)
     subs['lon'] = subs.geometry.x
@@ -99,6 +99,7 @@ def load_dc_projects():
         if mw <= 150:        return 'Large (50–150 MW)'
         return 'Hyperscale (>150 MW)'
 
+    import geopandas as gpd
     if os.path.exists(BAXTEL_PATH):
         try:
             gdf = gpd.read_parquet(BAXTEL_PATH)
