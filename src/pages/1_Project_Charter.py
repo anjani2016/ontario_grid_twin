@@ -53,7 +53,7 @@ A non-linear thermal model is applied to reflect real-world data center energy b
 
     st.markdown("### Smart Grid  & Energy Distribution & ")
     st.caption(
-        "Reference: from internet, "
+        "Energy flows from the power generators to consumers through a series of transformers classified as 'Transmission Substations', 'Regional Transformer Stations', and 'Demand Centres'"
     )
 
     # Create two columns for side-by-side display
@@ -62,14 +62,14 @@ A non-linear thermal model is applied to reflect real-world data center energy b
     with col1:
         st.image(
             "data/assets/smart_grid.jpeg",
-            caption="Figure 2a - Smart Grid Overview",
+            caption="Figure 1 - Smart Grid Overview",
             use_container_width=True,
         )
 
     with col2:
         st.image(
             "data/assets/energy_distribution_schematic.png",
-            caption="Figure 2b - Distribution Schematic",
+            caption="Figure 2 - Distribution Schematic",
             use_container_width=True,
         )
 
