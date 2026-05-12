@@ -13,8 +13,8 @@ projects = st.session_state['projects']
 provincial_interest_mw = st.session_state['provincial_interest_mw']
 dc_source = st.session_state['dc_source']
 
-st.markdown("## 🏢 Ontario Data Centres (Projected)")
-st.markdown("##### Proposed hyperscale and large-format data centre projects in Ontario's grid footprint.")
+st.markdown("## 🏭 Data Centres")
+st.markdown("##### Existing & Projected Ontario Data Centre Portfolio")
 st.markdown("<br>", unsafe_allow_html=True)
 
 st.sidebar.header("Filters")

@@ -3,6 +3,8 @@ import pydeck as pdk
 import pandas as pd
 import numpy as np
 from utils.ui_branding import apply_branding
+from engine.ieso_harvester import IESOHarvester
+from engine.grid_classifier import add_grid_classification
 
 apply_branding()
 
@@ -20,9 +22,13 @@ gen        = st.session_state['gen']
 dc         = st.session_state['dc']
 grid_nodes = st.session_state['grid_nodes']
 
+# Ensure classification is active (safety check for session persistence)
+if 'grid_centre_type' not in subs.columns:
+    subs = add_grid_classification(subs)
+
 # ── Page header ────────────────────────────────────────────────────────────────
-st.markdown("## ⚡ Ontario Data Centre & Grid Capacity Digital Twin")
-st.markdown("##### Substation Simulation: Evaluating 2026 IESO Forecasts for York Region Infrastructure.")
+st.markdown("## ⚡ Node Analysis: Ontario Grid Digital Twin")
+st.markdown("##### Substation Simulation: Evaluating 2026 IESO Forecasts for Provincial Infrastructure.")
 st.markdown("<br>", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -72,17 +78,42 @@ _preselected_total_mw = sum(_cat_capacity_mw.get(cat, 0) for cat in _preselected
 
 # ── Simulation parameters ──────────────────────────────────────────────────────
 st.sidebar.header("Simulation Parameters")
-target_sub = st.sidebar.selectbox("Select Target Substation", subs_filtered['name'].unique())
+
+# Filter out Demand Centres as targets (only Transmission and Regional are valid for high-load simulation)
+valid_targets = subs_filtered[subs_filtered['grid_centre_type'].isin(["Transmission Substation", "Regional Transformer Station"])]
+
+if valid_targets.empty:
+    st.sidebar.warning("No Transmission or Regional stations in this region.")
+    st.stop()
+
+st.sidebar.header("Simulation Parameters")
+st.sidebar.markdown("---")
+target_level = st.sidebar.radio(
+    "Select Infrastructure Level", 
+    ["Transmission Substation", "Regional Transformer Station"],
+    index=0
+)
+
+# Filter candidates and add Regional context to the names for clarity
+level_candidates = valid_targets[valid_targets['grid_centre_type'] == target_level].copy()
+
+if level_candidates.empty:
+    st.sidebar.warning(f"No {target_level}s in {', '.join(selected_sub_regions)}")
+    st.stop()
+
+# Create a display name: "Region - Station Name" for clarity in each region selection
+level_candidates['display_name'] = level_candidates['region'] + " - " + level_candidates['name']
+
+target_sub_display = st.sidebar.selectbox(
+    "Select Target Node", 
+    level_candidates['display_name'].unique(),
+    help=f"Showing all {target_level} assets in selected regions."
+)
+
+# Extract original name for calculation
+target_sub = target_sub_display.split(" - ", 1)[1] if target_sub_display else level_candidates['name'].iloc[0]
 dc_load    = st.sidebar.slider("Simulated Data Centre Load (MW)", 0, 600, 100)
 sim_ev_load = st.sidebar.slider("Simulated EV Charger Load (MW)", 0, 400, 40)
-
-# ── Map layer toggles ──────────────────────────────────────────────────────────
-st.sidebar.header("Map Layers")
-show_subs  = st.sidebar.toggle("Substations",         value=True)
-show_gen   = st.sidebar.toggle("Generation Sources",  value=True)
-show_dc    = st.sidebar.toggle("Existing Data Centres", value=False)
-show_ev    = st.sidebar.toggle("EV Charger Demand (Estimated)", value=True)
-show_flow  = st.sidebar.toggle("Network Flow (Arcs)", value=True)
 
 # ── Generation source category filters ─────────────────────────────────────────
 st.sidebar.header(
@@ -100,6 +131,44 @@ for cat in GENERATION_CATEGORIES:
     )
     if checked:
         selected_categories.add(cat)
+
+# ── Map layer toggles ──────────────────────────────────────────────────────────
+st.sidebar.header("Map Layers")
+
+# Filter DC by region for consistency
+dc_filtered = dc[dc['region'].isin(selected_sub_regions)] if (dc is not None and 'region' in dc.columns) else dc
+
+show_subs  = st.sidebar.toggle(f"Substations ({len(subs_filtered)})",         value=True)
+
+# Count generation sources based on selected regions and categories
+visible_gen_count = 0
+if gen_filtered is not None:
+    visible_gen_count = len(gen_filtered[gen_filtered['category'].isin(selected_categories)])
+show_gen   = st.sidebar.toggle(f"Generation Sources ({visible_gen_count})",  value=True)
+
+show_dc    = st.sidebar.toggle(f"Existing Data Centres ({len(dc_filtered) if dc_filtered is not None else 0})", value=False)
+show_ev    = st.sidebar.toggle("EV Charger Demand (Estimated)", value=True)
+show_flow  = st.sidebar.toggle("Network Flow (Arcs)", value=True)
+
+# ── Live Data Toggle ───────────────────────────────────────────────────────────
+st.sidebar.header("Data Sources")
+use_live_data = st.sidebar.toggle("Use Live IESO Data", value=False, help="Fetches real-time generation and demand from IESO public reports.")
+
+if use_live_data:
+    live_gen = IESOHarvester.get_mapped_gen_data()
+    live_demand = IESOHarvester.get_latest_demand()
+    
+    if live_gen and live_demand:
+        st.sidebar.success("Live Data Active")
+        with st.sidebar.expander("📊 Real-Time Grid Status", expanded=True):
+            st.metric("Provincial Demand", f"{live_demand['demand_mw']:,} MW")
+            st.write(f"**Hour:** {live_gen['hour']} | **As of:** {live_gen['timestamp']}")
+            for cat, val in live_gen['mapped_data'].items():
+                if val > 0:
+                    st.write(f"- {cat}: {val:,} MW")
+    else:
+        st.sidebar.error("Failed to fetch live data. Falling back to demo data.")
+        use_live_data = False
 
 # ── Base-map style ─────────────────────────────────────────────────────────────
 st.sidebar.header("Base Map")
@@ -186,6 +255,16 @@ subs_display["ev_load_mw"] = (
 subs_display["ev_load_mw"] = subs_display["ev_load_mw"].fillna(0.0)
 subs_display.loc[subs_display["name"] == target_sub, "ev_load_mw"] += sim_ev_load
 
+# Calculate viability counts for the legend
+def _get_viability(color):
+    if color == [0, 255, 0, 180]: return "Green"
+    if color == [255, 165, 0, 200]: return "Orange"
+    if color == [255, 0, 0, 200]: return "Red"
+    return "Unknown"
+
+subs_display['viability'] = subs_display['color'].apply(_get_viability)
+viability_counts = subs_display['viability'].value_counts().to_dict()
+
 # ── Layer 1 – Substations ──────────────────────────────────────────────────────
 if show_subs:
     map_layers.append(pdk.Layer(
@@ -218,9 +297,9 @@ if show_gen and gen_filtered is not None:
         ))
 
 # ── Layer – Existing Data Centres ─────────────────────────────────────────────
-if show_dc and dc is not None:
+if show_dc and dc_filtered is not None:
     map_layers.append(pdk.Layer(
-        "ColumnLayer", dc,
+        "ColumnLayer", dc_filtered,
         id="data-centres",
         get_position="[lon, lat]",
         get_elevation="load_mw * 10",
@@ -338,11 +417,11 @@ with col_node:
 
 with col_legend:
     with st.expander("🗺️ Map Legend", expanded=True):
-        st.markdown("""
+        st.markdown(f"""
 **Substations**
-- 🟢 **Green** — Highly Viable / Excellent Headroom
-- 🟠 **Orange** — Feasible / Moderate Stress
-- 🔴 **Red** — High Risk / Upgrade Required
+- 🟢 **Green** — Highly Viable (**{viability_counts.get('Green', 0)}**)
+- 🟠 **Orange** — Feasible (**{viability_counts.get('Orange', 0)}**)
+- 🔴 **Red** — High Risk (**{viability_counts.get('Red', 0)}**)
 
 **Generation Sources** *(by category)*
 - 🟣 **Purple** — Nuclear

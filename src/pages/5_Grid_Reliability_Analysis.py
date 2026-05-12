@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.express as px
 import numpy as np
 from utils.ui_branding import apply_branding
+from engine.grid_classifier import add_grid_classification
 
 apply_branding()
 
@@ -12,7 +13,11 @@ if 'data_loaded' not in st.session_state:
 subs = st.session_state['subs']
 grid_nodes = st.session_state['grid_nodes']
 
-st.markdown("## 🎲 Monte Carlo Risk Analytics")
+# Ensure classification is active
+if 'grid_centre_type' not in subs.columns:
+    subs = add_grid_classification(subs)
+
+st.markdown("## 🎲 Grid Reliability Analysis (Monte Carlo Analysis)")
 st.markdown("##### Probabilistic Distribution of Grid Load Scenarios")
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -20,7 +25,35 @@ col1, col2 = st.columns([1, 2])
 
 with col1:
     st.subheader("Simulation Parameters")
-    target_sub = st.selectbox("Select Target Substation", subs['name'].unique(), key="mc_sub")
+    region_options = sorted(subs['region'].dropna().astype(str).unique())
+    selected_region = st.selectbox("Region", region_options, key="mc_region")
+
+    # Filter options by region and exclude Demand Centres
+    subs_filtered = subs[
+        (subs['region'].astype(str) == selected_region) & 
+        (subs['grid_centre_type'].isin(["Transmission Substation", "Regional Transformer Station"]))
+    ]
+    
+    if subs_filtered.empty:
+        st.warning(f"No Transmission or Regional stations found in {selected_region}.")
+        st.stop()
+
+    target_level = st.radio(
+        "Select Infrastructure Level", 
+        ["Transmission Substation", "Regional Transformer Station"],
+        index=0,
+        key="mc_level"
+    )
+    
+    level_candidates = subs_filtered[subs_filtered['grid_centre_type'] == target_level]
+    
+    if level_candidates.empty:
+        st.warning(f"No {target_level}s in {selected_region}.")
+        st.stop()
+
+    target_options = sorted(level_candidates['name'].dropna().astype(str).unique())
+    target_sub = st.selectbox("Select Target Node", target_options, key="mc_sub")
+    
     dc_load = st.slider("Simulated Data Centre Load (MW)", 0, 600, 100, key="mc_slider")
     iterations = st.slider("Simulation Iterations", 1000, 10000, 5000, step=1000)
     

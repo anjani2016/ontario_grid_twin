@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 from engine.grid_model import GridNode
+from engine.grid_classifier import add_grid_classification
 
 # ── Category constants ────────────────────────────────────────────────────────
 # Ordered list of all generation categories shown in the map sidebar
@@ -61,12 +62,14 @@ def load_base_grid():
     lines_path = os.path.join(BASE_DIR, 'data/raw/ontario_lines.parquet')
     gen_path   = os.path.join(BASE_DIR, 'data/raw/generation_sources.parquet')
     dc_path    = os.path.join(BASE_DIR, 'data/raw/existing_dc.parquet')
+    real_demand_path = os.path.join(BASE_DIR, 'data/raw/real_time_demand_centres.parquet')
 
     import geopandas as gpd
     # Substations
     subs = gpd.read_parquet(subs_path).to_crs(epsg=4326)
     subs['lon'] = subs.geometry.x
     subs['lat']  = subs.geometry.y
+    subs = add_grid_classification(subs)
 
     # Optional files
     lines = gpd.read_parquet(lines_path).to_crs(epsg=4326) if os.path.exists(lines_path) else None
@@ -83,6 +86,12 @@ def load_base_grid():
         dc = gpd.read_parquet(dc_path).to_crs(epsg=4326)
         dc['lon'] = dc.geometry.x
         dc['lat']  = dc.geometry.y
+
+    if os.path.exists(real_demand_path):
+        real_dc = gpd.read_parquet(real_demand_path).to_crs(epsg=4326)
+        real_dc['lon'] = real_dc.geometry.x
+        real_dc['lat']  = real_dc.geometry.y
+        dc = pd.concat([dc, real_dc], ignore_index=True) if dc is not None else real_dc
 
     return subs, lines, gen, dc
 
