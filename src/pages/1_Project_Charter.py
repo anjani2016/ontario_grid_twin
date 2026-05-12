@@ -17,6 +17,22 @@ def render_project_charter():
     new loads (e.g., data centres, EV charging stations, etc) can be connected with acceptable reliability risk,
     available headroom, and transparent engineering assumptions.
     """)
+
+    st.markdown("""
+### **The Grid Balancing Act**
+At its core, the power grid is a massive, real-time machine where **Supply must perfectly match Demand** every second. If this balance shifts, the grid loses reliability.
+
+### **The Challenge: The Era of Electrification**
+The rapid expansion of **AI Data Centres** and the mass adoption of **Electric Vehicles (EVs)** are driving an unprecedented surge in demand. This "Electrification" transition requires a level of grid planning that is more dynamic than ever before.
+
+### **How to Use This Digital Twin**
+This application functions as a "Flight Simulator" for the Ontario Power Grid. It allows you to:
+* **Explore the Map:** Visualize the "Power Journey" from Generators and Transmission Nodes (HV) to local Demand Centres.
+* **Stress Test the Grid:** Simulate new "Step Loads" (like a 200MW Data Centre) to see where the system hits its thermal limits.
+* **Analyze Reliability:** Run **Monte Carlo Simulations** to calculate the statistical probability of a node failure under different climate and load scenarios.
+
+**Goal:** Bridge the gap between raw energy data and actionable engineering insights.
+""")
     
     st.markdown("### 🛠️ Project Methodology")
     
@@ -53,7 +69,7 @@ A non-linear thermal model is applied to reflect real-world data center energy b
 
     st.markdown("### Smart Grid  & Energy Distribution & ")
     st.caption(
-        "Energy flows from the power generators to consumers through a series of transformers classified as 'Transmission Substations', 'Regional Transformer Stations', and 'Demand Centres'"
+        "Energy flows from the power generators to consumers through a series of transformers classified in this model as 'Transmission Substations', 'Regional Transformer Stations', and 'Demand Centres'"
     )
 
     # Create two columns for side-by-side display
